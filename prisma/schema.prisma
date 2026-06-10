@@ -1,0 +1,216 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROFILE
+// Mirrors auth.users — created automatically via Supabase DB trigger.
+// ─────────────────────────────────────────────────────────────────────────────
+model Profile {
+  id        String   @id        // Matches auth.users.id (UUID)
+  email     String   @unique
+  fullName  String?  @map("full_name")
+  phone     String?
+  role      Role     @default(CUSTOMER)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  bookings         Booking[]
+  favorites        Favorite[]
+  recordedPayments Payment[]  @relation("RecordedPayments")
+
+  @@map("profiles")
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRIP
+// One trip = one bus journey to a destination.
+// busType defines the bus door configuration and floor layout.
+// seatsPerRow is always 4 (2+aisle+2) — standard in Mexico.
+// ─────────────────────────────────────────────────────────────────────────────
+model Trip {
+  id            String     @id @default(cuid())
+  slug          String     @unique
+  title         String
+  destination   String
+  description   String     @db.Text
+  itinerary     Json       // [{ day: number, title: string, description: string }]
+  coverImage    String     @map("cover_image")
+  gallery       String[]   @default([])
+  departureDate DateTime   @map("departure_date")
+  returnDate    DateTime   @map("return_date")
+  pricePerSeat  Decimal    @map("price_per_seat") @db.Decimal(10, 2)
+  totalSeats    Int        @map("total_seats")
+  seatsPerRow   Int        @map("seats_per_row") @default(4)
+  busType           BusType           @default(SINGLE_DOOR) @map("bus_type")
+  bathroomPosition  BathroomPosition  @default(BACK) @map("bathroom_position")
+  category          String?           @map("category")
+  status        TripStatus @default(DRAFT)
+
+  // ── Apartado / depósito ──────────────────────────────────────────────────
+  // null = apartado deshabilitado para este viaje
+  minimumDeposit       Decimal? @map("minimum_deposit") @db.Decimal(10, 2)
+  // Horas que tiene el cliente para registrar su primer abono antes de que se liberen los asientos
+  depositDeadlineHours Int      @default(24) @map("deposit_deadline_hours")
+  // % máximo de asientos que pueden estar en estado RESERVED simultáneamente
+  maxReservedPercent   Int      @default(40) @map("max_reserved_percent")
+
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  bookings  Booking[]
+  seatLocks SeatLock[]
+  favorites Favorite[]
+
+  @@map("trips")
+}
+
+enum TripStatus {
+  DRAFT
+  ACTIVE
+  CANCELLED
+}
+
+enum BusType {
+  SINGLE_DOOR    // 1 puerta delantera (estándar)
+  DOUBLE_DOOR    // 2 puertas: delantera + media
+  DOUBLE_DECKER  // Doble planta
+}
+
+enum BathroomPosition {
+  MIDDLE  // Baño a la mitad del autobús
+  BACK    // Baño al final del autobús
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BOOKING
+// One booking = one customer, one trip, N seats.
+// ─────────────────────────────────────────────────────────────────────────────
+model Booking {
+  id            String         @id @default(cuid())
+  tripId        String         @map("trip_id")
+  profileId     String         @map("profile_id")
+  seatNumbers   Int[]          @map("seat_numbers")
+  totalAmount   Decimal        @map("total_amount") @db.Decimal(10, 2)
+  // amountPaid se actualiza cada vez que se registra un Payment exitoso
+  amountPaid    Decimal        @default(0) @map("amount_paid") @db.Decimal(10, 2)
+  status        BookingStatus  @default(PENDING)
+  paymentMethod PaymentMethod? @map("payment_method")
+
+  // Timestamps de ciclo de vida
+  reservedAt        DateTime? @map("reserved_at")        // cuando se creó como RESERVED
+  depositExpiresAt  DateTime? @map("deposit_expires_at") // límite de 24h para primer abono
+  confirmedAt       DateTime? @map("confirmed_at")
+  cancelledAt       DateTime? @map("cancelled_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  trip     Trip      @relation(fields: [tripId], references: [id])
+  profile  Profile   @relation(fields: [profileId], references: [id])
+  payments Payment[]
+
+  @@index([tripId])
+  @@index([profileId])
+  @@index([depositExpiresAt]) // para el cron de vencimiento
+  @@map("bookings")
+}
+
+enum BookingStatus {
+  PENDING           // checkout iniciado, aún no hay pago
+  AWAITING_PAYMENT  // esperando confirmación de pago (OXXO / Stripe webhook)
+  RESERVED          // apartado activo — primer abono registrado, saldo pendiente
+  CONFIRMED         // pago completo
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CARD
+  OXXO
+  CASH  // efectivo gestionado por el admin
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAYMENT
+// Historial de pagos de una reserva.
+// Un booking puede tener múltiples payments (apartado en abonos).
+// ─────────────────────────────────────────────────────────────────────────────
+model Payment {
+  id                    String        @id @default(cuid())
+  bookingId             String        @map("booking_id")
+  amount                Decimal       @db.Decimal(10, 2)
+  method                PaymentMethod
+  status                PaymentStatus @default(COMPLETED)
+
+  // Stripe — solo para pagos con tarjeta
+  stripePaymentIntentId String?  @unique @map("stripe_payment_intent_id")
+  stripeReceiptUrl      String?  @map("stripe_receipt_url")
+
+  // OXXO — solo para pagos con OXXO
+  oxxoVoucherUrl        String?  @map("oxxo_voucher_url")
+  oxxoExpiresAt         DateTime? @map("oxxo_expires_at")
+
+  // Efectivo — admin que registró el pago y sus notas
+  notes                 String?  @db.Text
+  recordedById          String?  @map("recorded_by_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  recordedBy Profile? @relation("RecordedPayments", fields: [recordedById], references: [id])
+
+  @@index([bookingId])
+  @@map("payments")
+}
+
+enum PaymentStatus {
+  COMPLETED  // pago exitoso
+  PENDING    // pendiente de confirmación (OXXO en proceso)
+  REFUNDED   // reembolsado
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SEAT LOCK
+// Temporary hold on seats during checkout (15-min TTL).
+// Prevents double-booking between concurrent users.
+// ─────────────────────────────────────────────────────────────────────────────
+model SeatLock {
+  id          String   @id @default(cuid())
+  tripId      String   @map("trip_id")
+  profileId   String   @map("profile_id")
+  seatNumbers Int[]    @map("seat_numbers")
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@index([expiresAt])
+  @@map("seat_locks")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FAVORITE
+// Customer saves a trip to their wishlist.
+// ─────────────────────────────────────────────────────────────────────────────
+model Favorite {
+  id        String   @id @default(cuid())
+  profileId String   @map("profile_id")
+  tripId    String   @map("trip_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  trip    Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, tripId])
+  @@index([profileId])
+  @@map("favorites")
+}
