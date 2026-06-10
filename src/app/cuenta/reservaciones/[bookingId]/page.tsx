@@ -335,15 +335,56 @@ export default async function BookingDetailPage({ params }: PageProps) {
           )}
 
           {isConfirmed && !isPast && (
-            <div className="form-card" style={{ textAlign: 'center' }}>
-              <p className="h4" style={{ marginBottom: 'var(--s-2)' }}>Tu pase de abordar</p>
-              <p className="muted" style={{ fontSize: 'var(--fs-13)', marginBottom: 'var(--s-5)' }}>
-                Presenta este QR al abordar el autobús
-              </p>
-              <BookingQR data={qrData} />
-              <p style={{ marginTop: 'var(--s-4)', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-12)', color: 'var(--ink-subtle)' }}>
-                Asientos: <strong style={{ color: 'var(--ink)' }}>{booking.seatNumbers.join(', ')}</strong>
-              </p>
+            <div style={{ borderRadius: 'var(--r-xl)', overflow: 'hidden', border: '1px solid var(--border)', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+              {/* Header */}
+              <div style={{ background: '#0F1F4B', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', margin: '0 0 2px' }}>Pase de abordar</p>
+                  <p style={{ fontSize: 15, fontWeight: 800, color: '#fff', margin: 0 }}>{booking.trip.title}</p>
+                </div>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round">
+                  <path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/>
+                </svg>
+              </div>
+
+              {/* Body */}
+              <div style={{ background: '#fff', padding: '16px 18px', display: 'flex', gap: 16, alignItems: 'center' }}>
+                {/* QR */}
+                <div style={{ flexShrink: 0 }}>
+                  <BookingQR data={qrData} size={130} />
+                </div>
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-subtle)', margin: '0 0 2px' }}>Destino</p>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', margin: 0 }}>{booking.trip.destination}</p>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-subtle)', margin: '0 0 2px' }}>Salida</p>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', margin: 0 }}>{formatDate(booking.trip.departureDate)}</p>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-subtle)', margin: '0 0 4px' }}>Asientos</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {booking.seatNumbers.map(n => (
+                        <span key={n} style={{ width: 28, height: 28, borderRadius: '50%', background: '#0F1F4B', color: '#fff', fontSize: 11, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {n}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div style={{ background: '#F8FAFC', borderTop: '1px dashed var(--border)', padding: '10px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <p style={{ fontSize: 11, color: 'var(--ink-subtle)', margin: 0 }}>
+                  Presenta este QR al abordar
+                </p>
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-faint)', margin: 0 }}>
+                  {booking.id.slice(-8).toUpperCase()}
+                </p>
+              </div>
             </div>
           )}
 
