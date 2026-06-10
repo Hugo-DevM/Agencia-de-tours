@@ -38,7 +38,7 @@ export default async function EditTripPage({ params }: Props) {
         busType: trip.busType,
         category: trip.category,
         status: trip.status,
-        minimumDeposit:       trip.minimumDeposit,
+        minimumDeposit:       trip.minimumDeposit?.toString() ?? null,
         depositDeadlineHours: trip.depositDeadlineHours,
         maxReservedPercent:   trip.maxReservedPercent,
       }}

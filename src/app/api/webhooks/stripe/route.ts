@@ -86,15 +86,14 @@ async function handlePaymentSucceeded(pi: Stripe.PaymentIntent) {
     },
   });
 
-  // Cancel stale PENDING bookings for same user+trip
-  await prisma.booking.updateMany({
+  // Delete stale PENDING bookings for same user+trip — never had a successful payment
+  await prisma.booking.deleteMany({
     where: {
       tripId:    updatedBooking.tripId,
       profileId: updatedBooking.profileId,
       status:    { in: ['PENDING', 'AWAITING_PAYMENT'] },
       id:        { not: bookingId },
     },
-    data: { status: 'CANCELLED', cancelledAt: new Date() },
   });
 
   // Release seat lock
@@ -117,11 +116,11 @@ async function handlePaymentFailed(pi: Stripe.PaymentIntent) {
   const bookingId = pi.metadata?.bookingId;
   if (!bookingId) return;
 
-  // Only cancel PENDING/AWAITING_PAYMENT bookings — don't touch RESERVED (partially paid)
-  await prisma.booking.updateMany({
+  // Delete PENDING/AWAITING_PAYMENT bookings on payment failure — never had a successful payment.
+  // Don't touch RESERVED (partially paid).
+  await prisma.booking.deleteMany({
     where: { id: bookingId, status: { in: ['PENDING', 'AWAITING_PAYMENT'] } },
-    data:  { status: 'CANCELLED', cancelledAt: new Date() },
-  }).catch(err => console.error('[webhook] cancel booking error:', err));
+  }).catch(err => console.error('[webhook] delete booking error:', err));
 
   const tripId    = pi.metadata?.tripId;
   const profileId = pi.metadata?.profileId;

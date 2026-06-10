@@ -6,6 +6,7 @@ import { CatalogFilters } from '@/components/trips/CatalogFilters';
 import { CategoryPills } from '@/components/trips/CategoryPills';
 import { prisma } from '@/lib/prisma';
 import { createServerClient } from '@/lib/supabase/server';
+import { RealtimeRefresh } from '@/components/RealtimeRefresh';
 
 
 interface SearchParams {
@@ -140,6 +141,10 @@ export default async function ViajesPage({ searchParams }: PageProps) {
 
   return (
     <>
+      <RealtimeRefresh
+        channelName="catalogo-viajes"
+        tables={[{ table: 'trips' }]}
+      />
       <Navbar />
       <main>
         {/* ── Dark header ── */}

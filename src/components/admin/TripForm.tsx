@@ -169,8 +169,14 @@ export default function TripForm({ trip }: TripFormProps) {
   const [departureDate, setDepartureDate] = useState(
     trip?.departureDate ? new Date(trip.departureDate).toISOString().slice(0, 10) : ''
   );
+  const [departureTime, setDepartureTime] = useState(
+    trip?.departureDate ? new Date(trip.departureDate).toISOString().slice(11, 16) : '08:00'
+  );
   const [returnDate, setReturnDate] = useState(
     trip?.returnDate ? new Date(trip.returnDate).toISOString().slice(0, 10) : ''
+  );
+  const [returnTime, setReturnTime] = useState(
+    trip?.returnDate ? new Date(trip.returnDate).toISOString().slice(11, 16) : '20:00'
   );
   const [pricePerSeat, setPricePerSeat] = useState(
     trip?.pricePerSeat != null ? String(trip.pricePerSeat) : ''
@@ -280,8 +286,8 @@ export default function TripForm({ trip }: TripFormProps) {
       itinerary,
       coverImage,
       gallery,
-      departureDate,
-      returnDate,
+      departureDate: departureDate && departureTime ? `${departureDate}T${departureTime}:00-06:00` : departureDate,
+      returnDate:    returnDate    && returnTime    ? `${returnDate}T${returnTime}:00-06:00`       : returnDate,
       pricePerSeat,
       totalSeats,
       busType,
@@ -688,6 +694,7 @@ export default function TripForm({ trip }: TripFormProps) {
               </h4>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--s-4)', marginBottom: 'var(--s-4)' }}>
+                {/* Salida */}
                 <div className="field">
                   <label className="label">Salida</label>
                   <input
@@ -699,7 +706,16 @@ export default function TripForm({ trip }: TripFormProps) {
                     onKeyDown={(e) => e.preventDefault()}
                     required
                   />
+                  <input
+                    className="input"
+                    type="time"
+                    value={departureTime}
+                    onChange={(e) => setDepartureTime(e.target.value)}
+                    style={{ marginTop: 6 }}
+                    required
+                  />
                 </div>
+                {/* Regreso */}
                 <div className="field">
                   <label className="label">Regreso</label>
                   <input
@@ -709,6 +725,14 @@ export default function TripForm({ trip }: TripFormProps) {
                     min={departureDate || new Date().toISOString().slice(0, 10)}
                     onChange={(e) => setReturnDate(e.target.value)}
                     onKeyDown={(e) => e.preventDefault()}
+                    required
+                  />
+                  <input
+                    className="input"
+                    type="time"
+                    value={returnTime}
+                    onChange={(e) => setReturnTime(e.target.value)}
+                    style={{ marginTop: 6 }}
                     required
                   />
                 </div>

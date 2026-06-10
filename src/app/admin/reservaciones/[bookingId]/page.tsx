@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { CopyIdButton } from '@/components/admin/CopyIdButton';
 import { AdminApartadoActions } from '@/components/admin/AdminApartadoActions';
+import { RealtimeRefresh } from '@/components/RealtimeRefresh';
 
 interface PageProps {
   params: Promise<{ bookingId: string }>;
@@ -58,6 +59,14 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
   return (
     <>
+      <RealtimeRefresh
+        channelName={`admin-booking:${bookingId}`}
+        tables={[
+          { table: 'bookings', filter: `id=eq.${bookingId}` },
+          { table: 'payments', filter: `booking_id=eq.${bookingId}` },
+        ]}
+      />
+
       <div className="admin-topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-4)' }}>
           <Link href="/admin/reservaciones" className="btn-icon" title="Volver">
@@ -217,28 +226,46 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 {[
                   {
                     label: 'Reservación creada',
-                    date: booking.createdAt,
-                    done: true,
+                    date:  booking.createdAt,
+                    done:  true,
                     color: 'var(--blue-600)',
+                    sub:   null as string | null,
                   },
-                  {
-                    label: 'Pago iniciado',
-                    date: booking.status === 'AWAITING_PAYMENT' || booking.status === 'CONFIRMED' || booking.status === 'CANCELLED' ? booking.createdAt : null,
-                    done: ['AWAITING_PAYMENT','CONFIRMED','CANCELLED'].includes(booking.status),
-                    color: 'var(--orange-500)',
-                  },
-                  {
-                    label: 'Pago confirmado',
-                    date: booking.confirmedAt,
-                    done: !!booking.confirmedAt,
+                  // One entry per completed payment
+                  ...booking.payments.map((p, idx) => ({
+                    label: `Abono #${idx + 1} · ${p.method === 'CASH' ? 'Efectivo' : p.method === 'OXXO' ? 'OXXO' : 'Tarjeta'}`,
+                    date:  p.createdAt,
+                    done:  true,
                     color: '#16a34a',
+                    sub:   `+${formatCurrency(p.amount.toNumber())} MXN`,
+                    skip:  false,
+                  })),
+                  // If no payments yet but payment was initiated
+                  ...( booking.payments.length === 0 ? [{
+                    label: 'Pago iniciado',
+                    date:  (['AWAITING_PAYMENT','CONFIRMED','RESERVED'] as string[]).includes(booking.status)
+                             ? booking.reservedAt ?? booking.createdAt
+                             : null,
+                    done:  (['AWAITING_PAYMENT','CONFIRMED','RESERVED'] as string[]).includes(booking.status),
+                    color: 'var(--orange-500)',
+                    sub:   null as string | null,
+                    skip:  false,
+                  }] : []),
+                  {
+                    label: booking.status === 'RESERVED' ? 'Saldo liquidado' : 'Pago confirmado',
+                    date:  booking.confirmedAt,
+                    done:  !!booking.confirmedAt,
+                    color: '#16a34a',
+                    sub:   null as string | null,
+                    skip:  booking.status === 'CANCELLED',
                   },
                   {
                     label: 'Cancelada',
-                    date: booking.cancelledAt,
-                    done: !!booking.cancelledAt,
+                    date:  booking.cancelledAt,
+                    done:  !!booking.cancelledAt,
                     color: '#dc2626',
-                    skip: booking.status !== 'CANCELLED',
+                    sub:   null as string | null,
+                    skip:  booking.status !== 'CANCELLED',
                   },
                 ]
                   .filter(e => !e.skip)
@@ -269,6 +296,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                         {event.date && (
                           <p style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-subtle)', margin: '2px 0 0' }}>
                             {formatDate(event.date)}
+                          </p>
+                        )}
+                        {event.sub && (
+                          <p style={{ fontSize: 'var(--fs-12)', fontWeight: 700, color: '#16a34a', margin: '2px 0 0' }}>
+                            {event.sub}
                           </p>
                         )}
                         {!event.done && (

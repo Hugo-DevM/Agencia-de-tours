@@ -45,10 +45,9 @@ export async function POST(req: NextRequest) {
         if (pi.status === 'succeeded' || pi.status === 'processing') continue;
       } catch { /* PI not found — safe to cancel */ }
     }
-    await prisma.booking.update({
-      where: { id: booking.id },
-      data: { status: 'CANCELLED', cancelledAt: new Date() },
-    });
+    // Delete entirely — these bookings never had a successful payment,
+    // so there's no value in keeping them as CANCELLED noise.
+    await prisma.booking.delete({ where: { id: booking.id } });
   }
 
   return NextResponse.json({ ok: true });

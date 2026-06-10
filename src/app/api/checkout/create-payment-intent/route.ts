@@ -101,10 +101,9 @@ export async function POST(req: NextRequest) {
     } catch { /* PI not found — fall through */ }
   }
 
-  // Cancel stale PENDING bookings
-  await prisma.booking.updateMany({
+  // Delete stale PENDING bookings — they never had a successful payment
+  await prisma.booking.deleteMany({
     where: { tripId, profileId: user.id, status: { in: ['PENDING', 'AWAITING_PAYMENT'] } },
-    data: { status: 'CANCELLED', cancelledAt: new Date() },
   });
 
   // 7. Create booking

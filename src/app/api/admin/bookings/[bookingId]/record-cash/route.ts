@@ -66,9 +66,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     prisma.booking.update({
       where: { id: bookingId },
       data: {
-        amountPaid:  newAmountPaid,
-        status:      newStatus,
-        paymentMethod: 'CASH',
+        amountPaid:       newAmountPaid,
+        status:           newStatus,
+        paymentMethod:    'CASH',
+        // Clear the deposit deadline as soon as any payment is received —
+        // the client has demonstrated intent, so the countdown should stop.
+        depositExpiresAt: null,
         ...(isFullyPaid ? { confirmedAt: new Date() } : {}),
       },
     }),

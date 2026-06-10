@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatCurrency } from '@/lib/utils';
 
@@ -30,6 +30,18 @@ export function AdminApartadoActions({ bookingId, remaining, expiresAt }: Props)
   const [cancelConf,    setCancelConf]    = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError,   setCancelError]   = useState<string | null>(null);
+
+  // After a successful cash registration, show the success message for 2.5 s
+  // then reset the form so the admin can register another payment immediately.
+  useEffect(() => {
+    if (!cashDone) return;
+    const t = setTimeout(() => {
+      setCashDone(false);
+      setCashAmount(String(Math.round(remaining * 100) / 100));
+      setCashNotes('');
+    }, 2500);
+    return () => clearTimeout(t);
+  }, [cashDone, remaining]);
 
   async function handleRecordCash(e: React.FormEvent) {
     e.preventDefault();

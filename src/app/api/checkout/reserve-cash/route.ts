@@ -82,10 +82,9 @@ export async function POST(req: NextRequest) {
   const totalAmount    = trip.pricePerSeat.toNumber() * seatNumbers.length;
   const minDeposit     = trip.minimumDeposit.toNumber() * seatNumbers.length;
 
-  // Cancel any stale PENDING bookings for this user+trip
-  await prisma.booking.updateMany({
+  // Delete any stale PENDING bookings for this user+trip — never had a successful payment
+  await prisma.booking.deleteMany({
     where: { tripId, profileId: user.id, status: { in: ['PENDING', 'AWAITING_PAYMENT'] } },
-    data:  { status: 'CANCELLED', cancelledAt: now },
   });
 
   try {

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { BookingQR } from '@/components/cuenta/BookingQR';
 import { DepositCountdown } from '@/components/cuenta/DepositCountdown';
+import { RealtimeRefresh } from '@/components/RealtimeRefresh';
 
 interface PageProps {
   params: Promise<{ bookingId: string }>;
@@ -75,6 +76,14 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
   return (
     <div className="cuenta-content">
+      <RealtimeRefresh
+        channelName={`booking-detail:${bookingId}`}
+        tables={[
+          { table: 'bookings',  filter: `id=eq.${bookingId}` },
+          { table: 'payments',  filter: `booking_id=eq.${bookingId}` },
+        ]}
+      />
+
       {/* Back */}
       <Link href="/cuenta/reservaciones" className="cuenta-back">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m15 18-6-6 6-6"/></svg>
@@ -215,9 +224,9 @@ export default async function BookingDetailPage({ params }: PageProps) {
           {isReserved && (
             <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 'var(--r-xl)', padding: 'var(--s-5)' }}>
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#EA580C', margin: '0 0 4px' }}>
-                Tiempo para pagar
+                {paid > 0 ? 'Asiento apartado' : 'Tiempo para pagar'}
               </p>
-              {booking.depositExpiresAt && (
+              {booking.depositExpiresAt && paid === 0 && (
                 <>
                   <DepositCountdown expiresAt={booking.depositExpiresAt.toISOString()} />
                   <p style={{ fontSize: 11, color: '#C2410C', margin: '4px 0 var(--s-4)' }}>

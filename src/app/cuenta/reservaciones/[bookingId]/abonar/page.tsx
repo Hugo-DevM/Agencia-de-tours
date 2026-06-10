@@ -99,8 +99,8 @@ export default async function AbonarPage({ params }: PageProps) {
             </div>
           </div>
 
-          {/* Expiry */}
-          {booking.depositExpiresAt && (
+          {/* Expiry — hide once any payment has been received */}
+          {booking.depositExpiresAt && paid === 0 && (
             <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 16, padding: '16px 18px' }}>
               <p style={{ fontSize: 11, fontWeight: 700, color: '#EA580C', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 Tiempo restante de apartado

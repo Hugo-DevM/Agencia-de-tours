@@ -9,6 +9,7 @@ import { TripItinerary } from '@/components/trips/TripItinerary';
 import { SeatSelector } from '@/components/seat-map/SeatSelector';
 import { prisma } from '@/lib/prisma';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { RealtimeRefresh } from '@/components/RealtimeRefresh';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -83,6 +84,13 @@ export default async function TripDetailPage({ params }: PageProps) {
 
   return (
     <>
+      <RealtimeRefresh
+        channelName={`viaje:${trip.id}`}
+        tables={[
+          { table: 'trips',    filter: `id=eq.${trip.id}` },
+          { table: 'bookings', filter: `trip_id=eq.${trip.id}` },
+        ]}
+      />
       <Navbar />
       <main style={{ background: '#F8F9FB', minHeight: '100vh' }}>
 

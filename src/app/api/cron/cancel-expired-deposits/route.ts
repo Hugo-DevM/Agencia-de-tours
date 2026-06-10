@@ -13,11 +13,13 @@ export async function GET(req: NextRequest) {
 
   const now = new Date();
 
-  // Find all expired RESERVED bookings
+  // Find expired RESERVED bookings that have NOT received any payment yet.
+  // If amountPaid > 0 the client already started paying — don't cancel them.
   const expired = await prisma.booking.findMany({
     where: {
-      status:          'RESERVED',
+      status:           'RESERVED',
       depositExpiresAt: { lt: now },
+      amountPaid:       0,
     },
     include: {
       trip:    { select: { title: true, destination: true, departureDate: true } },

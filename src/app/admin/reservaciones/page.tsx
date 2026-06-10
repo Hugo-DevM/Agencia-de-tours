@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { prisma } from '@/lib/prisma';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { ReservacionesFilters } from '@/components/admin/ReservacionesFilters';
+import { RealtimeRefresh } from '@/components/RealtimeRefresh';
 
 interface SearchParams {
   estado?: string;
@@ -37,6 +38,8 @@ async function BookingsTable({ estado, viaje, q, pagina }: SearchParams) {
   const skip = (page - 1) * PAGE_SIZE;
 
   const where = {
+    // Hide abandoned checkouts: CANCELLED bookings that never had a payment
+    NOT: { status: 'CANCELLED' as never, amountPaid: 0 },
     ...(estado ? { status: estado as never } : {}),
     ...(viaje  ? { tripId: viaje } : {}),
     ...(q      ? {
@@ -178,6 +181,11 @@ export default async function AdminReservacionesPage({ searchParams }: PageProps
 
   return (
     <>
+      <RealtimeRefresh
+        channelName="admin-reservaciones"
+        tables={[{ table: 'bookings' }, { table: 'payments' }]}
+      />
+
       <div className="admin-topbar">
         <div>
           <div className="eyebrow">Administración</div>

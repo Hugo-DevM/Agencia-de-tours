@@ -3,6 +3,7 @@ import Image from 'next/image';
 import { getAuthenticatedUser } from '@/lib/auth/get-user';
 import { prisma } from '@/lib/prisma';
 import { formatCurrency } from '@/lib/utils';
+import { RealtimeRefresh } from '@/components/RealtimeRefresh';
 
 const PER_PAGE = 5;
 
@@ -97,6 +98,10 @@ export default async function ReservacionesPage({ searchParams }: PageProps) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <RealtimeRefresh
+        channelName={`reservaciones:${user.id}`}
+        tables={[{ table: 'bookings', filter: `profile_id=eq.${user.id}` }]}
+      />
 
       {/* Count */}
       <p style={{ margin: 0, fontSize: 14, color: '#64748b' }}>

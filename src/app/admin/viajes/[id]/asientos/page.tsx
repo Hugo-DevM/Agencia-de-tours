@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { AdminSeatMap } from '@/components/admin/AdminSeatMap';
+import { RealtimeRefresh } from '@/components/RealtimeRefresh';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -70,6 +71,14 @@ export default async function AdminSeatMapPage({ params }: PageProps) {
 
   return (
     <>
+      <RealtimeRefresh
+        channelName={`admin-seats:${id}`}
+        tables={[
+          { table: 'bookings',   filter: `trip_id=eq.${id}` },
+          { table: 'seat_locks', filter: `trip_id=eq.${id}` },
+        ]}
+      />
+
       {/* ── Topbar ── */}
       <div className="admin-topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

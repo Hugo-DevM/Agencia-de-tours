@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedUser } from '@/lib/auth/get-user';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { RealtimeRefresh } from '@/components/RealtimeRefresh';
 
 export const metadata = { title: 'Dashboard' };
 
@@ -46,7 +47,10 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
 
-  const bookingWhere = { status: { in: ['PENDING', 'AWAITING_PAYMENT', 'CONFIRMED', 'CANCELLED'] as never[] } };
+  const bookingWhere = {
+    status: { in: ['PENDING', 'AWAITING_PAYMENT', 'CONFIRMED', 'CANCELLED'] as never[] },
+    NOT: { status: 'CANCELLED' as never, amountPaid: 0 },
+  };
 
   const [
     totalBookings, revenueAgg, activeTripsCount,
@@ -101,6 +105,14 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
 
   return (
     <>
+      <RealtimeRefresh
+        channelName="admin-dashboard"
+        tables={[
+          { table: 'bookings' },
+          { table: 'payments' },
+        ]}
+      />
+
       {/* Topbar */}
       <div className="admin-topbar">
         <div>
