@@ -123,7 +123,8 @@ export default async function ReservacionesPage({ searchParams }: PageProps) {
             : `${dep.getDate()} ${months[dep.getMonth()]} – ${ret.getDate()} ${months[ret.getMonth()]} ${ret.getFullYear()}`;
 
           const status      = STATUS_CONFIG[b.status] ?? STATUS_CONFIG.CANCELLED;
-          const isPending   = b.status === 'PENDING' || b.status === 'AWAITING_PAYMENT';
+          const isPending      = b.status === 'PENDING';
+          const isAwaitingOxxo = b.status === 'AWAITING_PAYMENT';
           const isReserved  = b.status === 'RESERVED';
           const isCompleted = b.trip.departureDate < new Date() && b.status === 'CONFIRMED';
           const paid        = b.amountPaid.toNumber();
@@ -211,7 +212,7 @@ export default async function ReservacionesPage({ searchParams }: PageProps) {
                   {!isReserved && (
                     <div>
                       <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 2px', textAlign: 'right' }}>
-                        {isPending ? 'Total' : 'Total pagado'}
+                        {isPending || isAwaitingOxxo ? 'Total' : 'Total pagado'}
                       </p>
                       <p style={{ fontSize: 16, fontWeight: 900, color: '#F97316', margin: 0, letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
                         {formatCurrency(b.totalAmount.toNumber())} MXN
@@ -219,7 +220,19 @@ export default async function ReservacionesPage({ searchParams }: PageProps) {
                     </div>
                   )}
 
-                  {isPending ? (
+                  {isAwaitingOxxo ? (
+                    <Link
+                      href={`/cuenta/reservaciones/${b.id}`}
+                      style={{
+                        padding: '7px 14px', borderRadius: 999,
+                        background: '#F97316', color: '#fff',
+                        fontSize: 12, fontWeight: 700, textDecoration: 'none',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Ver voucher OXXO →
+                    </Link>
+                  ) : isPending ? (
                     <Link
                       href={`/viajes/${b.trip.slug}#asientos`}
                       style={{

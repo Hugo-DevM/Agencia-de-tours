@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getAuthenticatedUser } from '@/lib/auth/get-user';
 import { prisma } from '@/lib/prisma';
+import { stripe } from '@/lib/stripe';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { BookingQR } from '@/components/cuenta/BookingQR';
 import { DepositCountdown } from '@/components/cuenta/DepositCountdown';
@@ -57,9 +58,30 @@ export default async function BookingDetailPage({ params }: PageProps) {
     (booking.trip.returnDate.getTime() - booking.trip.departureDate.getTime()) / 86400000
   );
 
-  const isConfirmed = booking.status === 'CONFIRMED';
-  const isReserved  = booking.status === 'RESERVED';
-  const isPast      = booking.trip.departureDate < new Date();
+  const isConfirmed      = booking.status === 'CONFIRMED';
+  const isReserved       = booking.status === 'RESERVED';
+  const isAwaitingOxxo   = booking.status === 'AWAITING_PAYMENT';
+  const isPast           = booking.trip.departureDate < new Date();
+
+  // Fetch OXXO voucher details from Stripe if applicable
+  type OxxoInfo = { number: string | null; expiresAfter: number | null; hostedVoucherUrl: string | null };
+  let oxxoInfo: OxxoInfo | null = null;
+  if (isAwaitingOxxo) {
+    const oxxoPayment = booking.payments.find(p => p.stripePaymentIntentId);
+    if (oxxoPayment?.stripePaymentIntentId) {
+      try {
+        const pi = await stripe.paymentIntents.retrieve(oxxoPayment.stripePaymentIntentId);
+        if (pi.status === 'requires_action' && pi.next_action?.type === 'oxxo_display_details') {
+          const d = pi.next_action.oxxo_display_details;
+          oxxoInfo = {
+            number:           d.number ?? null,
+            expiresAfter:     d.expires_after ?? null,
+            hostedVoucherUrl: d.hosted_voucher_url ?? null,
+          };
+        }
+      } catch { /* Stripe unavailable — still show the OXXO panel without details */ }
+    }
+  }
   // Sum from actual completed payments — more reliable than booking.amountPaid
   // which can lag behind due to webhook race conditions
   const paid      = booking.payments
@@ -220,6 +242,66 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
         {/* QR / apartado sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s-5)' }}>
+
+          {/* OXXO pending panel */}
+          {isAwaitingOxxo && (
+            <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 'var(--r-xl)', padding: 'var(--s-5)' }}>
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#EA580C', margin: '0 0 12px' }}>
+                Pago OXXO pendiente
+              </p>
+
+              {/* Voucher number */}
+              {oxxoInfo?.number && (
+                <div style={{ background: '#fff', borderRadius: 12, padding: '12px 14px', marginBottom: 12, border: '1px solid #FED7AA' }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: '#92400E', textTransform: 'uppercase', margin: '0 0 6px' }}>
+                    Número de referencia
+                  </p>
+                  <p style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '0.08em', wordBreak: 'break-all' }}>
+                    {oxxoInfo.number}
+                  </p>
+                </div>
+              )}
+
+              {/* Expiry */}
+              {oxxoInfo?.expiresAfter && (
+                <p style={{ fontSize: 12, color: '#C2410C', fontWeight: 600, margin: '0 0 12px' }}>
+                  Vence el {new Date(oxxoInfo.expiresAfter * 1000).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+              )}
+
+              {/* Amount */}
+              <p style={{ fontSize: 22, fontWeight: 900, color: '#EA580C', margin: '0 0 14px', letterSpacing: '-0.02em' }}>
+                {formatCurrency(total)} MXN
+              </p>
+
+              {/* View voucher button */}
+              {oxxoInfo?.hostedVoucherUrl ? (
+                <a
+                  href={oxxoInfo.hostedVoucherUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'block', textAlign: 'center',
+                    padding: '12px 0', borderRadius: 999,
+                    background: '#F97316', color: '#fff',
+                    fontSize: 14, fontWeight: 700, textDecoration: 'none',
+                    boxShadow: '0 4px 16px rgba(249,115,22,.3)',
+                  }}
+                >
+                  Ver voucher OXXO →
+                </a>
+              ) : (
+                <p style={{ fontSize: 12, color: '#92400E', textAlign: 'center', margin: 0 }}>
+                  Ve a cualquier tienda OXXO y proporciona este número de referencia al cajero.
+                </p>
+              )}
+
+              <p style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', margin: 'var(--s-3) 0 0' }}>
+                Tu asiento está reservado hasta que venza el voucher.
+              </p>
+            </div>
+          )}
+
           {/* Apartado panel */}
           {isReserved && (
             <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 'var(--r-xl)', padding: 'var(--s-5)' }}>

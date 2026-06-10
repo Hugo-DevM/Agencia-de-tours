@@ -39,22 +39,39 @@ export default async function ConfirmacionPage({ params, searchParams }: PagePro
   let chargedAmount: number | null = null;
   let isDepositPayment = booking.status === 'RESERVED';
 
-  if (payment_intent && stripeSuccess) {
+  // OXXO-specific details
+  type OxxoDetails = { number: string | null; expiresAfter: number | null; hostedVoucherUrl: string | null };
+  let oxxoDetails: OxxoDetails | null = null;
+
+  if (payment_intent) {
     try {
-      const pi    = await stripe.paymentIntents.retrieve(payment_intent);
-      chargedAmount    = pi.amount / 100;
-      if (pi.metadata?.mode === 'deposit') isDepositPayment = true;
+      const pi = await stripe.paymentIntents.retrieve(payment_intent);
+      if (stripeSuccess || pi.status === 'requires_action') {
+        chargedAmount = pi.amount / 100;
+        if (pi.metadata?.mode === 'deposit') isDepositPayment = true;
+      }
+      if (pi.status === 'requires_action' && pi.next_action?.type === 'oxxo_display_details') {
+        const d = pi.next_action.oxxo_display_details;
+        oxxoDetails = {
+          number:           d.number ?? null,
+          expiresAfter:     d.expires_after ?? null,
+          hostedVoucherUrl: d.hosted_voucher_url ?? null,
+        };
+      }
     } catch { /* ignore — fall back to DB values */ }
   }
+
+  // Also detect OXXO from booking status (webhook may have already fired)
+  const isOxxoPending = oxxoDetails !== null || booking.status === 'AWAITING_PAYMENT';
 
   const paidAmount  = chargedAmount ?? booking.amountPaid.toNumber();
   const totalAmount = booking.totalAmount.toNumber();
   const remaining   = totalAmount - (booking.amountPaid.toNumber() + (chargedAmount ?? 0));
 
-  const isFullyPaid = booking.status === 'CONFIRMED' || (stripeSuccess && !isDepositPayment);
-  const isConfirmed = isFullyPaid || (stripeSuccess && isDepositPayment) || booking.status === 'RESERVED';
+  const isFullyPaid = booking.status === 'CONFIRMED' || (stripeSuccess && !isDepositPayment && !isOxxoPending);
+  const isConfirmed = isFullyPaid || (stripeSuccess && isDepositPayment && !isOxxoPending) || booking.status === 'RESERVED';
   const isCancelled = booking.status === 'CANCELLED' && !stripeSuccess;
-  const isPending   = !isConfirmed && !isCancelled;
+  const isPending   = !isConfirmed && !isCancelled && !isOxxoPending;
 
   // Short folio like AT-2025-A3F9
   const folio = `AT-${new Date(booking.createdAt).getFullYear()}-${booking.id.slice(-4).toUpperCase()}`;
@@ -257,7 +274,118 @@ export default async function ConfirmacionPage({ params, searchParams }: PagePro
             </>
           )}
 
-          {/* ── PENDING (OXXO / processing) ── */}
+          {/* ── OXXO pending ── */}
+          {isOxxoPending && (
+            <>
+              {/* Icon */}
+              <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#FFF7ED', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+                <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="5" width="20" height="14" rx="2"/>
+                  <path d="M2 10h20"/>
+                </svg>
+              </div>
+
+              <p style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: '#EA580C', textTransform: 'uppercase', margin: '0 0 12px', textAlign: 'center' }}>
+                [ Voucher OXXO generado ]
+              </p>
+              <h1 style={{ fontSize: 'clamp(1.8rem,4vw,2.4rem)', fontWeight: 900, color: '#0F172A', margin: '0 0 12px', textAlign: 'center' }}>
+                ¡Ya casi! Paga en OXXO
+              </h1>
+              <p style={{ fontSize: 15, color: '#475569', textAlign: 'center', margin: '0 0 32px', lineHeight: 1.6 }}>
+                Tu asiento está reservado. Tienes <strong style={{ color: '#EA580C' }}>3 días</strong> para completar el pago en cualquier tienda OXXO.
+              </p>
+
+              {/* Main card */}
+              <div style={{ width: '100%', background: '#fff', borderRadius: 20, boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #F1F5F9', overflow: 'hidden', marginBottom: 24 }}>
+
+                {/* Amount + deadline */}
+                <div style={{ background: '#FFF7ED', padding: '20px 24px', borderBottom: '1px solid #FED7AA' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                    <div>
+                      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#92400E', margin: '0 0 4px' }}>Total a pagar</p>
+                      <p style={{ fontSize: 28, fontWeight: 900, color: '#EA580C', margin: 0, letterSpacing: '-0.02em' }}>
+                        {formatCurrency(chargedAmount ?? totalAmount)} MXN
+                      </p>
+                    </div>
+                    {oxxoDetails?.expiresAfter && (
+                      <div style={{ textAlign: 'right' }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#92400E', margin: '0 0 4px' }}>Vence el</p>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: '#C2410C', margin: 0 }}>
+                          {new Date(oxxoDetails.expiresAfter * 1000).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Voucher number */}
+                {oxxoDetails?.number && (
+                  <div style={{ padding: '20px 24px', borderBottom: '1px solid #F1F5F9' }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#94a3b8', margin: '0 0 10px' }}>
+                      Número de referencia OXXO
+                    </p>
+                    <p style={{ fontFamily: 'monospace', fontSize: 22, fontWeight: 800, color: '#0F172A', letterSpacing: '0.12em', margin: 0, wordBreak: 'break-all' }}>
+                      {oxxoDetails.number}
+                    </p>
+                  </div>
+                )}
+
+                {/* Trip info */}
+                {[
+                  { label: 'Viaje', value: booking.trip.title },
+                  { label: 'Asientos', value: booking.seatNumbers.join(', ') },
+                  { label: 'Folio', value: folio },
+                ].map((row, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px', borderBottom: i < 2 ? '1px solid #F8FAFC' : 'none' }}>
+                    <span style={{ fontSize: 14, color: '#64748b' }}>{row.label}</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: '#0F172A', fontFamily: i === 2 ? 'monospace' : undefined }}>{row.value}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Steps */}
+              <div style={{ width: '100%', background: '#fff', borderRadius: 20, border: '1px solid #F1F5F9', padding: '20px 24px', marginBottom: 24 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#94a3b8', margin: '0 0 16px' }}>Cómo pagar</p>
+                {[
+                  { n: 1, text: 'Ve a cualquier tienda OXXO en México.' },
+                  { n: 2, text: 'Dile al cajero que quieres hacer un pago de servicio.' },
+                  { n: 3, text: 'Proporciona el número de referencia de arriba.' },
+                  { n: 4, text: 'Conserva tu ticket — es tu comprobante de pago.' },
+                ].map(({ n, text }) => (
+                  <div key={n} style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: n < 4 ? 12 : 0 }}>
+                    <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#FFF7ED', border: '1.5px solid #FED7AA', color: '#EA580C', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {n}
+                    </div>
+                    <p style={{ fontSize: 14, color: '#475569', margin: '3px 0 0', lineHeight: 1.5 }}>{text}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {oxxoDetails?.hostedVoucherUrl && (
+                  <a
+                    href={oxxoDetails.hostedVoucherUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ padding: '13px 28px', borderRadius: 999, background: '#F97316', color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', boxShadow: '0 4px 16px rgba(249,115,22,.35)' }}
+                  >
+                    Ver voucher →
+                  </a>
+                )}
+                <Link
+                  href="/cuenta/reservaciones"
+                  style={{ padding: '13px 28px', borderRadius: 999, border: '1.5px solid #CBD5E1', color: '#0F172A', fontSize: 14, fontWeight: 600, textDecoration: 'none', background: '#fff' }}
+                >
+                  Ver mis reservaciones
+                </Link>
+              </div>
+
+              <ConfirmationPoller bookingId={bookingId} />
+            </>
+          )}
+
+          {/* ── PENDING (card processing) ── */}
           {isPending && (
             <>
               <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#FEF9C3', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>

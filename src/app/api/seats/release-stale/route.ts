@@ -37,13 +37,19 @@ export async function POST(req: NextRequest) {
   });
 
   for (const booking of pendingBookings) {
+    // AWAITING_PAYMENT means an OXXO voucher was generated — always preserve these.
+    // The Stripe webhook (payment_intent.payment_failed) handles cancellation when the voucher expires.
+    if (booking.status === 'AWAITING_PAYMENT') continue;
+
     const payment = booking.payments[0];
     if (payment?.stripePaymentIntentId) {
       try {
         const pi = await stripe.paymentIntents.retrieve(payment.stripePaymentIntentId);
         // Payment already went through — leave it alone; webhook will confirm the booking
         if (pi.status === 'succeeded' || pi.status === 'processing') continue;
-      } catch { /* PI not found — safe to cancel */ }
+        // OXXO voucher generated but booking still PENDING (webhook not yet fired) — preserve it
+        if (pi.status === 'requires_action' && pi.next_action?.type === 'oxxo_display_details') continue;
+      } catch { /* PI not found — safe to delete */ }
     }
     // Delete entirely — these bookings never had a successful payment,
     // so there's no value in keeping them as CANCELLED noise.

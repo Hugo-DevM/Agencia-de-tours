@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
   }
 
   const now = new Date();
+  const fourDaysAgo = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000);
 
   // Find expired RESERVED bookings that have NOT received any payment yet.
   // If amountPaid > 0 the client already started paying — don't cancel them.
@@ -27,20 +28,35 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  if (!expired.length) {
+  // Backup: cancel AWAITING_PAYMENT bookings older than 4 days — these are OXXO
+  // vouchers that expired without payment and the Stripe webhook didn't fire.
+  const staleOxxo = await prisma.booking.findMany({
+    where: {
+      status:    'AWAITING_PAYMENT',
+      createdAt: { lt: fourDaysAgo },
+    },
+    include: {
+      trip:    { select: { title: true, destination: true, departureDate: true } },
+      profile: { select: { email: true, fullName: true } },
+    },
+  });
+
+  const allToCancel = [...expired, ...staleOxxo];
+
+  if (!allToCancel.length) {
     return NextResponse.json({ cancelled: 0 });
   }
 
   // Bulk-cancel
   await prisma.booking.updateMany({
-    where: { id: { in: expired.map(b => b.id) } },
+    where: { id: { in: allToCancel.map(b => b.id) } },
     data:  { status: 'CANCELLED', cancelledAt: now },
   });
 
   // Send cancellation emails (fire and forget — don't block on failures)
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
   const emailResults = await Promise.allSettled(
-    expired.map(b => sendDepositCancelledEmail(b, appUrl))
+    allToCancel.map(b => sendDepositCancelledEmail(b, appUrl))
   );
 
   const emailErrors = emailResults
@@ -51,6 +67,6 @@ export async function GET(req: NextRequest) {
     console.error('[cron/cancel-expired-deposits] email errors:', emailErrors);
   }
 
-  console.log(`[cron/cancel-expired-deposits] cancelled ${expired.length} bookings`);
-  return NextResponse.json({ cancelled: expired.length });
+  console.log(`[cron/cancel-expired-deposits] cancelled ${expired.length} deposit + ${staleOxxo.length} stale OXXO bookings`);
+  return NextResponse.json({ cancelled: allToCancel.length });
 }

@@ -27,6 +27,9 @@ export async function POST(req: NextRequest) {
     case 'payment_intent.succeeded':
       await handlePaymentSucceeded(pi);
       break;
+    case 'payment_intent.requires_action':
+      await handleRequiresAction(pi);
+      break;
     case 'payment_intent.payment_failed':
     case 'payment_intent.canceled':
       await handlePaymentFailed(pi);
@@ -110,6 +113,18 @@ async function handlePaymentSucceeded(pi: Stripe.PaymentIntent) {
       console.error('[webhook] email send error:', err)
     );
   }
+}
+
+// Fires when OXXO voucher is generated — move booking to AWAITING_PAYMENT
+async function handleRequiresAction(pi: Stripe.PaymentIntent) {
+  if (pi.next_action?.type !== 'oxxo_display_details') return;
+  const bookingId = pi.metadata?.bookingId;
+  if (!bookingId) return;
+
+  await prisma.booking.updateMany({
+    where: { id: bookingId, status: 'PENDING' },
+    data:  { status: 'AWAITING_PAYMENT', paymentMethod: 'OXXO' },
+  });
 }
 
 async function handlePaymentFailed(pi: Stripe.PaymentIntent) {

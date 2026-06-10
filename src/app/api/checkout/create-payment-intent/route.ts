@@ -101,9 +101,10 @@ export async function POST(req: NextRequest) {
     } catch { /* PI not found — fall through */ }
   }
 
-  // Delete stale PENDING bookings — they never had a successful payment
+  // Delete stale PENDING bookings only — AWAITING_PAYMENT means an OXXO voucher
+  // was generated and the seat is held for 3 days; don't touch those.
   await prisma.booking.deleteMany({
-    where: { tripId, profileId: user.id, status: { in: ['PENDING', 'AWAITING_PAYMENT'] } },
+    where: { tripId, profileId: user.id, status: 'PENDING' },
   });
 
   // 7. Create booking
