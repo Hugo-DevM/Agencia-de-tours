@@ -23,6 +23,13 @@ export default async function CheckoutPage({ searchParams }: PageProps) {
   const seatNumbers = seatsParam.split(',').map(Number).filter(Boolean);
   if (!seatNumbers.length) redirect('/viajes');
 
+  // Verify lock exists and get its expiry
+  const seatLock = await prisma.seatLock.findUnique({
+    where: { id: lockId },
+    select: { expiresAt: true },
+  });
+  if (!seatLock || seatLock.expiresAt < new Date()) redirect('/viajes');
+
   const trip = await prisma.trip.findUnique({
     where: { id: tripId, status: 'ACTIVE' },
     select: {
@@ -120,6 +127,7 @@ export default async function CheckoutPage({ searchParams }: PageProps) {
             chargeAmount={chargeAmount}
             mode={mode}
             tripSlug={trip.slug}
+            lockExpiresAt={seatLock.expiresAt.toISOString()}
           />
 
           {/* ── RIGHT: order summary ── */}

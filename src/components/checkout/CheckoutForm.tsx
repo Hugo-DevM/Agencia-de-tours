@@ -20,6 +20,7 @@ interface CheckoutFormProps {
   chargeAmount: number;
   mode: 'full' | 'deposit';
   tripSlug: string;
+  lockExpiresAt: string;
 }
 
 /* ── Inner form ───────────────────────────────────────────── */
@@ -86,13 +87,85 @@ function PaymentForm({ bookingId, totalAmount }: { bookingId: string; totalAmoun
   );
 }
 
+/* ── Lock countdown hook ──────────────────────────────────── */
+function useCountdown(expiresAt: string) {
+  const [remaining, setRemaining] = useState(() =>
+    Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000))
+  );
+  useEffect(() => {
+    const id = setInterval(() => {
+      setRemaining(prev => {
+        const next = Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
+        if (next === 0) clearInterval(id);
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [expiresAt]);
+  return remaining;
+}
+
+/* ── Expired overlay ──────────────────────────────────────── */
+function ExpiredOverlay({ tripSlug }: { tripSlug: string }) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: 'rgba(15,23,42,0.75)',
+      backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 24,
+    }}>
+      <div style={{
+        background: '#fff', borderRadius: 24,
+        padding: '40px 36px', maxWidth: 400, width: '100%',
+        textAlign: 'center',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.25)',
+      }}>
+        {/* Icon */}
+        <div style={{
+          width: 64, height: 64, borderRadius: '50%',
+          background: '#FEF2F2', margin: '0 auto 20px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2"/>
+          </svg>
+        </div>
+        <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', margin: '0 0 10px' }}>
+          Tu reserva expiró
+        </h2>
+        <p style={{ fontSize: 14, color: '#64748B', margin: '0 0 28px', lineHeight: 1.6 }}>
+          Los 15 minutos para completar tu pago se agotaron y tus asientos fueron liberados. Vuelve al catálogo para seleccionarlos de nuevo.
+        </p>
+        <a
+          href={`/viajes/${tripSlug}#asientos`}
+          style={{
+            display: 'block', padding: '14px 0', borderRadius: 999,
+            background: '#F97316', color: '#fff',
+            fontSize: 15, fontWeight: 700, textDecoration: 'none',
+            boxShadow: '0 4px 16px rgba(249,115,22,.3)',
+          }}
+        >
+          Volver a seleccionar asientos
+        </a>
+      </div>
+    </div>
+  );
+}
+
 /* ── Outer wrapper ────────────────────────────────────────── */
-export function CheckoutForm({ tripId, seatNumbers, lockId, totalAmount, chargeAmount, mode, tripSlug }: CheckoutFormProps) {
+export function CheckoutForm({ tripId, seatNumbers, lockId, totalAmount, chargeAmount, mode, tripSlug, lockExpiresAt }: CheckoutFormProps) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [bookingId,    setBookingId]    = useState<string | null>(null);
   const [initError,    setInitError]    = useState<string | null>(null);
   const [loading,      setLoading]      = useState(true);
   const calledRef = useRef(false);
+  const secondsLeft = useCountdown(lockExpiresAt);
+  const expired = secondsLeft === 0;
+
+  const mm = String(Math.floor(secondsLeft / 60)).padStart(2, '0');
+  const ss = String(secondsLeft % 60).padStart(2, '0');
 
   useEffect(() => {
     if (calledRef.current) return;
@@ -125,16 +198,20 @@ export function CheckoutForm({ tripId, seatNumbers, lockId, totalAmount, chargeA
 
   if (loading) {
     return (
-      <div style={{
-        background: '#fff', borderRadius: 20,
-        boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-        border: '1px solid #F1F5F9',
-        padding: '28px',
-        display: 'flex', flexDirection: 'column', gap: 14,
-      }}>
-        {[80, 120, 56].map((h, i) => (
-          <div key={i} style={{ height: h, borderRadius: 10, background: '#F1F5F9', animation: 'pulse 1.5s ease-in-out infinite' }} />
-        ))}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Countdown skeleton */}
+        <div style={{ height: 44, borderRadius: 12, background: '#F1F5F9', animation: 'pulse 1.5s ease-in-out infinite' }} />
+        <div style={{
+          background: '#fff', borderRadius: 20,
+          boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+          border: '1px solid #F1F5F9',
+          padding: '28px',
+          display: 'flex', flexDirection: 'column', gap: 14,
+        }}>
+          {[80, 120, 56].map((h, i) => (
+            <div key={i} style={{ height: h, borderRadius: 10, background: '#F1F5F9', animation: 'pulse 1.5s ease-in-out infinite' }} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -168,36 +245,72 @@ export function CheckoutForm({ tripId, seatNumbers, lockId, totalAmount, chargeA
     );
   }
 
+  const isUrgent = secondsLeft <= 120; // last 2 min → red
+
   return (
-    <Elements
-      stripe={stripePromise}
-      options={{
-        clientSecret: clientSecret!,
-        locale: 'es-419',
-        appearance: {
-          theme: 'stripe',
-          variables: {
-            colorPrimary: '#0F1F4B',
-            colorDanger: '#DC2626',
-            borderRadius: '10px',
-            fontFamily: 'ui-sans-serif, system-ui, sans-serif',
-            spacingUnit: '5px',
-            colorBackground: '#ffffff',
-          },
-          rules: {
-            '.Label': { fontWeight: '700', fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#94a3b8', fontFamily: 'monospace' },
-            '.Input': { border: '1.5px solid #E2E8F0', boxShadow: 'none', padding: '12px 14px', fontSize: '14px' },
-            '.Input:focus': { border: '1.5px solid #0F1F4B', boxShadow: 'none' },
-            '.Tab': { border: '1.5px solid #E2E8F0', borderRadius: '12px' },
-            '.Tab--selected': { border: '1.5px solid #0F1F4B', boxShadow: 'none' },
-            '.Tab:hover': { border: '1.5px solid #94a3b8' },
-            '.Select': { border: '1.5px solid #E2E8F0', boxShadow: 'none', padding: '12px 14px', fontSize: '14px', backgroundColor: '#ffffff', color: '#0F172A' },
-            '.Select:focus': { border: '1.5px solid #0F1F4B', boxShadow: 'none', outline: 'none' },
-          },
-        },
-      }}
-    >
-      <PaymentForm bookingId={bookingId!} totalAmount={totalAmount} />
-    </Elements>
+    <>
+      {expired && <ExpiredOverlay tripSlug={tripSlug} />}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Countdown banner */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 16px', borderRadius: 12,
+          background: isUrgent ? '#FEF2F2' : '#FFF7ED',
+          border: `1px solid ${isUrgent ? '#FECACA' : '#FED7AA'}`,
+          transition: 'background 0.4s, border-color 0.4s',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={isUrgent ? '#DC2626' : '#EA580C'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+            </svg>
+            <span style={{ fontSize: 13, fontWeight: 600, color: isUrgent ? '#991B1B' : '#9A3412' }}>
+              Tus asientos están reservados por
+            </span>
+          </div>
+          <span style={{
+            fontFamily: 'var(--font-mono, monospace)',
+            fontSize: 16, fontWeight: 800,
+            color: isUrgent ? '#DC2626' : '#EA580C',
+            letterSpacing: '0.05em',
+            minWidth: 52, textAlign: 'right',
+          }}>
+            {mm}:{ss}
+          </span>
+        </div>
+
+        {/* Payment form */}
+        <Elements
+          stripe={stripePromise}
+          options={{
+            clientSecret: clientSecret!,
+            locale: 'es-419',
+            appearance: {
+              theme: 'stripe',
+              variables: {
+                colorPrimary: '#0F1F4B',
+                colorDanger: '#DC2626',
+                borderRadius: '10px',
+                fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+                spacingUnit: '5px',
+                colorBackground: '#ffffff',
+              },
+              rules: {
+                '.Label': { fontWeight: '700', fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#94a3b8', fontFamily: 'monospace' },
+                '.Input': { border: '1.5px solid #E2E8F0', boxShadow: 'none', padding: '12px 14px', fontSize: '14px' },
+                '.Input:focus': { border: '1.5px solid #0F1F4B', boxShadow: 'none' },
+                '.Tab': { border: '1.5px solid #E2E8F0', borderRadius: '12px' },
+                '.Tab--selected': { border: '1.5px solid #0F1F4B', boxShadow: 'none' },
+                '.Tab:hover': { border: '1.5px solid #94a3b8' },
+                '.Select': { border: '1.5px solid #E2E8F0', boxShadow: 'none', padding: '12px 14px', fontSize: '14px', backgroundColor: '#ffffff', color: '#0F172A' },
+                '.Select:focus': { border: '1.5px solid #0F1F4B', boxShadow: 'none', outline: 'none' },
+              },
+            },
+          }}
+        >
+          <PaymentForm bookingId={bookingId!} totalAmount={totalAmount} />
+        </Elements>
+      </div>
+    </>
   );
 }
