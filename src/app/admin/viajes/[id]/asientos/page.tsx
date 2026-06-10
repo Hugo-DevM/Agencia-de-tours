@@ -12,12 +12,14 @@ interface PageProps {
 const STATUS_BADGE: Record<string, string> = {
   PENDING:          'badge badge-blue',
   AWAITING_PAYMENT: 'badge badge-yellow',
+  RESERVED:         'badge badge-orange',
   CONFIRMED:        'badge badge-green',
   CANCELLED:        'badge badge-red',
 };
 const STATUS_LABEL: Record<string, string> = {
   PENDING:          'Pendiente',
   AWAITING_PAYMENT: 'Pago pend.',
+  RESERVED:         'Apartado',
   CONFIRMED:        'Confirmada',
   CANCELLED:        'Cancelada',
 };
@@ -47,8 +49,12 @@ export default async function AdminSeatMapPage({ params }: PageProps) {
     .filter(b => b.status === 'CONFIRMED')
     .flatMap(b => b.seatNumbers);
 
+  const reservedSeats = trip.bookings
+    .filter(b => b.status === 'RESERVED')
+    .flatMap(b => b.seatNumbers);
+
   const pendingSeats = trip.bookings
-    .filter(b => b.status !== 'CONFIRMED')
+    .filter(b => b.status !== 'CONFIRMED' && b.status !== 'RESERVED')
     .flatMap(b => b.seatNumbers);
 
   const lockedSeats = trip.seatLocks.flatMap(l => l.seatNumbers);
@@ -130,9 +136,10 @@ export default async function AdminSeatMapPage({ params }: PageProps) {
           </div>
 
           {/* 4 stat boxes */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
             {[
-              { count: confirmedSeats.length, label: 'Confirmados', color: '#16a34a' },
+              { count: confirmedSeats.length, label: 'Confirmados', color: '#DC2626' },
+              { count: reservedSeats.length,  label: 'Apartados',   color: '#F97316' },
               { count: pendingSeats.length,   label: 'Pendientes',  color: '#d97706' },
               { count: lockedSeats.length,    label: 'Bloqueados',  color: '#9333ea' },
               { count: availableSeats,        label: 'Disponibles', color: '#0284c7' },
@@ -168,6 +175,7 @@ export default async function AdminSeatMapPage({ params }: PageProps) {
                 totalSeats={trip.totalSeats}
                 busType={trip.busType}
                 confirmedSeats={confirmedSeats}
+                reservedSeats={reservedSeats}
                 pendingSeats={pendingSeats}
                 lockedSeats={lockedSeats}
               />

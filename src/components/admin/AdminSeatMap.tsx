@@ -7,6 +7,7 @@ interface AdminSeatMapProps {
   totalSeats: number;
   busType: BusType;
   confirmedSeats: number[];
+  reservedSeats: number[];
   pendingSeats: number[];
   lockedSeats: number[];
 }
@@ -27,11 +28,12 @@ function getLowerCount(totalSeats: number): number {
   return Math.ceil(half / SEATS_PER_ROW) * SEATS_PER_ROW;
 }
 
-type AdminSeatState = 'free' | 'confirmed' | 'pending' | 'locked';
+type AdminSeatState = 'free' | 'confirmed' | 'reserved' | 'pending' | 'locked';
 
 const STATE_CLASS: Record<AdminSeatState, string> = {
   free:      'seat seat--free',
   confirmed: 'seat seat--confirmed',
+  reserved:  'seat seat--reserved',
   pending:   'seat seat--pending',
   locked:    'seat seat--locked',
 };
@@ -39,6 +41,7 @@ const STATE_CLASS: Record<AdminSeatState, string> = {
 const STATE_TITLE: Record<AdminSeatState, string> = {
   free:      'Disponible',
   confirmed: 'Confirmado',
+  reserved:  'Apartado',
   pending:   'Pago pendiente',
   locked:    'Bloqueado (temp.)',
 };
@@ -140,11 +143,12 @@ function SingleBus({ rows, label, getSeatState, showSecondDoor = false, midRow =
   );
 }
 
-export function AdminSeatMap({ totalSeats, busType, confirmedSeats, pendingSeats, lockedSeats }: AdminSeatMapProps) {
+export function AdminSeatMap({ totalSeats, busType, confirmedSeats, reservedSeats, pendingSeats, lockedSeats }: AdminSeatMapProps) {
   function getSeatState(num: number): AdminSeatState {
     if (confirmedSeats.includes(num)) return 'confirmed';
-    if (pendingSeats.includes(num))   return 'pending';
+    if (reservedSeats.includes(num))  return 'reserved';
     if (lockedSeats.includes(num))    return 'locked';
+    if (pendingSeats.includes(num))   return 'pending';
     return 'free';
   }
 
@@ -178,6 +182,7 @@ export function AdminSeatMap({ totalSeats, busType, confirmedSeats, pendingSeats
         {([
           ['seat--free',      'Disponible'],
           ['seat--confirmed', 'Confirmado'],
+          ['seat--reserved',  'Apartado'],
           ['seat--pending',   'Pago pendiente'],
           ['seat--locked',    'Bloqueado (temp.)'],
         ] as [string, string][]).map(([cls, label]) => (
