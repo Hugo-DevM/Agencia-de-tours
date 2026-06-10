@@ -87,6 +87,14 @@ export default function AdminSidebar({ profile }: AdminSidebarProps) {
           Reservaciones
         </NavLink>
 
+        <NavLink href="/admin/verificar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
+            <rect x="7" y="7" width="10" height="10" rx="1"/>
+          </svg>
+          Verificar boletos
+        </NavLink>
+
         <div className="group-label" style={{ marginTop: 'var(--s-4)' }}>Ajustes</div>
 
         <NavLink href="/admin/configuracion">
