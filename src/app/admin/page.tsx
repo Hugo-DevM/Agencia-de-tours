@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getAuthenticatedUser } from '@/lib/auth/get-user';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { RealtimeRefresh } from '@/components/RealtimeRefresh';
+import { AdminNotifications } from '@/components/admin/AdminNotifications';
 
 export const metadata = { title: 'Dashboard' };
 
@@ -121,12 +122,15 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
             Buenos días, {greeting}.
           </h1>
         </div>
-        <Link href="/admin/viajes/nuevo" className="btn btn-primary btn-sm">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 5v14M5 12h14"/>
-          </svg>
-          Nuevo viaje
-        </Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <AdminNotifications />
+          <Link href="/admin/viajes/nuevo" className="btn btn-primary btn-sm">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+            Nuevo viaje
+          </Link>
+        </div>
       </div>
 
       <div className="admin-content">
